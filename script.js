@@ -1,19 +1,4 @@
-// Unregister legacy service workers to avoid caching issues
-if (navigator.serviceWorker) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    if (registrations.length > 0) {
-      for (let registration of registrations) {
-        registration.unregister().then(() => {
-          console.log("Legacy service worker unregistered.");
-        });
-      }
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
-    }
-  });
-}
-
+// Legacy service worker cleanup is removed to prevent conflict with mini-coi.js (COOP/COEP service worker).
 // Define standard C++ templates
 const templates = {
   'hello-world': `#include <iostream>
