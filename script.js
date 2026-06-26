@@ -1032,6 +1032,10 @@ $(document).ready(() => {
     console.error("xterm terminal initialization failed:", e);
   }
 
+
+
+
+
   // Set safety timeout for loading screen (10 seconds)
   loadingTimeout = setTimeout(() => {
     $('#loading-error-box').fadeIn();
