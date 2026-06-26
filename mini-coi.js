@@ -17,37 +17,20 @@
       }
     }
 
-    // 3. Prevent rapid reload loop using a cooldown timestamp (3 seconds)
-    const lastReloadKey = 'mini-coi-last-reload-time';
-    const lastReload = parseInt(sessionStorage.getItem(lastReloadKey) || '0', 10);
-    const now = Date.now();
-
+    // 3. Prevent infinite reload loop using a single session flag
     const { currentScript: c } = d;
     s.register(c.src, { scope: c.getAttribute('scope') || '.' }).then(r => {
-      r.addEventListener('updatefound', () => {
-        if (Date.now() - lastReload > 3000) {
-          sessionStorage.setItem(lastReloadKey, Date.now().toString());
-          location.reload();
-        }
-      });
+      r.addEventListener('updatefound', () => location.reload());
       
       if (r.active && !s.controller) {
-        // Cooldown defense: if we reloaded less than 3 seconds ago, do not reload again.
-        // This gives the browser time to bind the active controller without looping.
-        if (now - lastReload > 3000) {
-          sessionStorage.setItem(lastReloadKey, now.toString());
+        // Only reload once. If we already reloaded and controller is still null, do not reload again.
+        if (!sessionStorage.getItem('mini-coi-reloaded')) {
+          sessionStorage.setItem('mini-coi-reloaded', 'true');
           location.reload();
-        } else {
-          console.warn("mini-coi: Reload deferred to let browser bind controller.");
-          // Listen to controller changes dynamically to resume without infinite reloading
-          s.addEventListener('controllerchange', () => {
-            console.log("mini-coi: Controller resolved successfully.");
-            location.reload(); // Reload once to enforce COOP/COEP after binding
-          }, { once: true });
         }
-      } else if (s.controller) {
-        // Reset timestamp on successful control
-        sessionStorage.removeItem(lastReloadKey);
+      } else {
+        // Reset the reload state on successful control
+        sessionStorage.removeItem('mini-coi-reloaded');
       }
     }).catch(err => {
       console.error("mini-coi: Service worker registration failed:", err);
