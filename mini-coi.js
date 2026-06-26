@@ -17,7 +17,12 @@
       }
     }
 
-    // 3. Prevent infinite reload loop using a single session flag
+    // 3. Auto-expire the reload flag after 5 seconds to allow subsequent user-initiated refreshes
+    setTimeout(() => {
+      sessionStorage.removeItem('mini-coi-reloaded');
+    }, 5000);
+
+    // 4. Prevent infinite reload loop using a single session flag
     const { currentScript: c } = d;
     s.register(c.src, { scope: c.getAttribute('scope') || '.' }).then(r => {
       r.addEventListener('updatefound', () => location.reload());
