@@ -17,27 +17,37 @@
       }
     }
 
-    // 3. Prevent infinite reload loop using sessionStorage
-    const reloadKey = 'mini-coi-reload-count';
-    const reloadCount = parseInt(sessionStorage.getItem(reloadKey) || '0', 10);
-
-    if (reloadCount > 3) {
-      console.warn("mini-coi: Infinite reload loop detected and stopped. Please check browser settings or clear site data.");
-      sessionStorage.removeItem(reloadKey);
-      return;
-    }
+    // 3. Prevent rapid reload loop using a cooldown timestamp (3 seconds)
+    const lastReloadKey = 'mini-coi-last-reload-time';
+    const lastReload = parseInt(sessionStorage.getItem(lastReloadKey) || '0', 10);
+    const now = Date.now();
 
     const { currentScript: c } = d;
     s.register(c.src, { scope: c.getAttribute('scope') || '.' }).then(r => {
       r.addEventListener('updatefound', () => {
-        sessionStorage.setItem(reloadKey, (reloadCount + 1).toString());
-        location.reload();
+        if (Date.now() - lastReload > 3000) {
+          sessionStorage.setItem(lastReloadKey, Date.now().toString());
+          location.reload();
+        }
       });
+      
       if (r.active && !s.controller) {
-        sessionStorage.setItem(reloadKey, (reloadCount + 1).toString());
-        location.reload();
+        // Cooldown defense: if we reloaded less than 3 seconds ago, do not reload again.
+        // This gives the browser time to bind the active controller without looping.
+        if (now - lastReload > 3000) {
+          sessionStorage.setItem(lastReloadKey, now.toString());
+          location.reload();
+        } else {
+          console.warn("mini-coi: Reload deferred to let browser bind controller.");
+          // Listen to controller changes dynamically to resume without infinite reloading
+          s.addEventListener('controllerchange', () => {
+            console.log("mini-coi: Controller resolved successfully.");
+            location.reload(); // Reload once to enforce COOP/COEP after binding
+          }, { once: true });
+        }
       } else if (s.controller) {
-        sessionStorage.removeItem(reloadKey);
+        // Reset timestamp on successful control
+        sessionStorage.removeItem(lastReloadKey);
       }
     }).catch(err => {
       console.error("mini-coi: Service worker registration failed:", err);
