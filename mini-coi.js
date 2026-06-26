@@ -3,7 +3,7 @@
   if (d) {
     // 1. Bypass if SharedArrayBuffer is already supported (e.g. localhost with COOP/COEP headers)
     if (typeof SharedArrayBuffer !== "undefined") {
-      sessionStorage.removeItem('mini-coi-reloaded-time');
+      sessionStorage.removeItem('mini-coi-reloaded');
       return;
     }
 
@@ -18,31 +18,38 @@
       }
     }
 
-    // 3. Prevent infinite reload loop using a 10-second session cooldown window.
-    // This blocks fast rapid loops while allowing manually triggered refreshes to retry.
-    const reloadKey = 'mini-coi-reloaded-time';
-    const lastReloadTime = parseInt(sessionStorage.getItem(reloadKey) || '0', 10);
-    const now = Date.now();
-    const isLimitActive = (now - lastReloadTime) < 10000; // Active if reloaded in the last 10 seconds
-
+    // 3. Prevent infinite reload loop using a single session flag across ALL reload triggers
+    const reloadKey = 'mini-coi-reloaded';
     const { currentScript: c } = d;
+    
     s.register(c.src, { scope: c.getAttribute('scope') || '.' }).then(r => {
-      // Enforce cooldown limit on updatefound
-      r.addEventListener('updatefound', () => {
-        if (!isLimitActive) {
-          sessionStorage.setItem(reloadKey, Date.now().toString());
+      const triggerReload = () => {
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, 'true');
           location.reload();
         }
-      });
+      };
+
+      r.addEventListener('updatefound', triggerReload);
       
+      // Case A: Worker is already active but controller is missing (needs reload to claim)
       if (r.active && !s.controller) {
-        // Enforce cooldown limit on active check
-        if (!isLimitActive) {
-          sessionStorage.setItem(reloadKey, Date.now().toString());
-          location.reload();
-        }
-      } else if (s.controller) {
-        // Reset state upon successful control
+        triggerReload();
+      }
+      
+      // Case B: First time visit. Service worker is installing or waiting.
+      // We must listen for when it transitions to the 'activated' state, then reload.
+      const pendingWorker = r.installing || r.waiting;
+      if (pendingWorker) {
+        pendingWorker.addEventListener('statechange', () => {
+          if (pendingWorker.state === 'activated' && !s.controller) {
+            triggerReload();
+          }
+        });
+      }
+      
+      if (s.controller) {
+        // Reset the reload state on successful control
         sessionStorage.removeItem(reloadKey);
       }
     }).catch(err => {
